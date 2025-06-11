@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Singapore Trip Expenditure Map</title>
+    <script src="data.js"></script>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        .popup-content {
+            font-family: Arial, sans-serif;
+        }
+        .popup-content h3 {
+            margin: 0 0 5px 0;
+            color: #333;
+        }
+        .popup-content p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .amount {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="loading">Loading data...</div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    
+    <script>
+        // Initialize the map centered on Singapore
+        const map = L.map('map').setView([1.3521, 103.8198], 11);
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Function to parse CSV
+        function parseCSV(csv) {
+            const lines = csv.split('\n');
+            const headers = lines[0].split(',');
+            return lines.slice(1).map(line => {
+                // Handle quoted values properly
+                const values = [];
+                let currentValue = '';
+                let insideQuotes = false;
+                
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    if (char === '"') {
+                        insideQuotes = !insideQuotes;
+                    } else if (char === ',' && !insideQuotes) {
+                        values.push(currentValue);
+                        currentValue = '';
+                    } else {
+                        currentValue += char;
+                    }
+                }
+                values.push(currentValue); // Push the last value
+
+                const obj = {};
+                headers.forEach((header, index) => {
+                    obj[header] = values[index] || '';
+                });
+                return obj;
+            });
+        }
+
+        // Function to validate coordinates
+        function isValidCoordinate(lat, lng) {
+            const numLat = parseFloat(lat);
+            const numLng = parseFloat(lng);
+            return !isNaN(numLat) && !isNaN(numLng) &&
+                   numLat >= -90 && numLat <= 90 &&
+                   numLng >= -180 && numLng <= 180;
+        }
+
+        // Process the data and add markers
+        async function processData() {
+            try {
+                // const csvData = data;
+                const data = parseCSV(csvData);
+                let validMarkers = 0;
+                
+                data.forEach(entry => {
+                    if (entry.lat && entry.lng && entry.INR) {
+                        const lat = parseFloat(entry.lat);
+                        const lng = parseFloat(entry.lng);
+                        
+                        if (isValidCoordinate(lat, lng)) {
+                            const date = entry.Date || 'No date';
+                            const inr = entry.INR.replace('₹', '').trim();
+                            
+                            // Create popup content
+                            const popupContent = `
+                                <div class="popup-content">
+                                    <h3>${entry.Description}</h3>
+                                    <p>Date: ${date}</p>
+                                    <p class="amount">Amount: ${inr}</p>
+                                </div>
+                            `;
+
+                            // Add marker to map
+                            L.marker([lat, lng])
+                                .bindPopup(popupContent)
+                                .addTo(map);
+                            
+                            validMarkers++;
+                        }
+                    }
+                });
+                
+                console.log(`Added ${validMarkers} markers to the map`);
+                document.getElementById('loading').style.display = 'none';
+            } catch (error) {
+                console.error('Error processing data:', error);
+                document.getElementById('loading').innerHTML = `Error loading data: ${error.message}`;
+            }
+        }
+
+        // Start processing
+        processData();
+    </script>
+</body>
+</html> 
